@@ -131,7 +131,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
             // 要件定義で決めたファイル名を生成
             const date = new Date().toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
-            let fileName = `${date}_${chatTitle.replace(/[^a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\-]+/g, '_')}`; // ファイル名として不正な文字を置換
+            // ファイル名に使えない文字のみを置換（Windows: <>:"/\|?*）
+            let sanitizedTitle = chatTitle.replace(/[<>:"/\\|?*]/g, '_');
+            let fileName = `${date}_${sanitizedTitle}`;
             fileName = fileName.substring(0, 80); // 長すぎる場合、80文字でカット（目安）
             fileName += '.md';
 
