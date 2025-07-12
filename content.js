@@ -4,6 +4,76 @@
 
 console.log("content.js loaded.");
 
+// HTMLをMarkdownに変換する関数
+function convertHtmlToMarkdown(element) {
+    let markdown = '';
+    
+    const traverse = (node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+            return node.textContent;
+        }
+        
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+            return '';
+        }
+        
+        const tagName = node.tagName.toLowerCase();
+        let content = '';
+        
+        // 子要素を再帰的に処理
+        for (const child of node.childNodes) {
+            content += traverse(child);
+        }
+        
+        switch (tagName) {
+            case 'p':
+                return content + '\n\n';
+            case 'h1':
+                return `# ${content}\n\n`;
+            case 'h2':
+                return `## ${content}\n\n`;
+            case 'h3':
+                return `### ${content}\n\n`;
+            case 'h4':
+                return `#### ${content}\n\n`;
+            case 'h5':
+                return `##### ${content}\n\n`;
+            case 'h6':
+                return `###### ${content}\n\n`;
+            case 'strong':
+            case 'b':
+                return `**${content}**`;
+            case 'em':
+            case 'i':
+                return `*${content}*`;
+            case 'code':
+                return `\`${content}\``;
+            case 'pre':
+                return `\`\`\`\n${content}\n\`\`\`\n\n`;
+            case 'ul':
+                return content + '\n';
+            case 'ol':
+                return content + '\n';
+            case 'li':
+                const parent = node.parentNode;
+                const isOrdered = parent && parent.tagName.toLowerCase() === 'ol';
+                const prefix = isOrdered ? '1. ' : '- ';
+                return `${prefix}${content}\n`;
+            case 'a':
+                const href = node.getAttribute('href');
+                return href ? `[${content}](${href})` : content;
+            case 'br':
+                return '\n';
+            case 'blockquote':
+                return `> ${content}\n\n`;
+            default:
+                return content;
+        }
+    };
+    
+    return traverse(element);
+}
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "exportChat") {
         console.log("Export chat action received in content.js");
@@ -12,39 +82,58 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         let chatTitle = "Gemini_Chat"; // デフォルトのファイル名（後で実際のタイトルを取得）
 
         try {
-            // --- ここからDOMからの情報抽出ロジックを記述 ---
+            // チャットタイトルを取得（複数のセレクタを試す）
+            const possibleTitleSelectors = [
+                'h1', 'h2', 'h3', 
+                '[data-testid*="title"]',
+                '.chat-title',
+                '.conversation-title'
+            ];
+            
+            for (const selector of possibleTitleSelectors) {
+                const titleElement = document.querySelector(selector);
+                if (titleElement && titleElement.textContent.trim()) {
+                    chatTitle = titleElement.textContent.trim();
+                    break;
+                }
+            }
 
-            // チャットタイトルを取得する（仮のセレクタ。要調査）
-            // 例: const titleElement = document.querySelector('h2.chat-title');
-            // if (titleElement) {
-            //     chatTitle = titleElement.textContent.trim();
-            // }
+            // 会話コンテナをすべて取得
+            const conversationElements = document.querySelectorAll('.conversation-container');
+            
+            if (conversationElements.length === 0) {
+                sendResponse({ error: "チャットメッセージが見つかりませんでした。" });
+                return true;
+            }
 
-            // メッセージのコンテナ要素をすべて取得する（仮のセレクタ。要調査）
-            // 例: const messageElements = document.querySelectorAll('.message-container');
+            const currentDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+            markdownContent = `# ${chatTitle}\n\n*エクスポート日: ${currentDate}*\n\n---\n\n`;
 
-            // if (messageElements.length === 0) {
-            //     sendResponse({ error: "チャットメッセージが見つかりませんでした。" });
-            //     return true;
-            // }
+            conversationElements.forEach((conversationElement, index) => {
+                // ユーザーメッセージを抽出
+                const userQuery = conversationElement.querySelector('user-query .query-text-line');
+                if (userQuery) {
+                    const userText = userQuery.textContent.trim();
+                    if (userText) {
+                        markdownContent += `## ユーザー\n\n${userText}\n\n`;
+                    }
+                }
 
-            // messageElements.forEach((messageElement) => {
-            //     // 各メッセージからユーザー/Geminiを判定し、内容を抽出する
-            //     // 例: if (messageElement.classList.contains('user-message')) { ... }
-            //     //     else if (messageElement.classList.contains('gemini-message')) { ... }
+                // Geminiの応答を抽出
+                const modelResponse = conversationElement.querySelector('model-response .markdown');
+                if (modelResponse) {
+                    // HTMLをMarkdownに変換
+                    let geminiText = convertHtmlToMarkdown(modelResponse);
+                    if (geminiText.trim()) {
+                        markdownContent += `## Gemini\n\n${geminiText}\n\n`;
+                    }
+                }
 
-            //     // 日付の取得（要検討: UIに日付表示がない場合、取得は難しい）
-            //     const currentDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-            //     markdownContent += `\n---\n\n`; // 区切り線
-
-            //     // 仮のメッセージ追加
-            //     // markdownContent += `## ユーザー (${currentDate})\n\n`;
-            //     // markdownContent += `これはユーザーの仮のメッセージです。\n\n`;
-            //     // markdownContent += `## Gemini (${currentDate})\n\n`;
-            //     // markdownContent += `これはGeminiの仮の応答です。コードブロックやリストもここに含まれます。\n\n`;
-            // });
-
-            // --- ここまでDOMからの情報抽出ロジック ---
+                // 区切り線（最後の会話以外）
+                if (index < conversationElements.length - 1) {
+                    markdownContent += `---\n\n`;
+                }
+            });
 
             // 要件定義で決めたファイル名を生成
             const date = new Date().toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
@@ -52,9 +141,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             fileName = fileName.substring(0, 80); // 長すぎる場合、80文字でカット（目安）
             fileName += '.md';
 
-            // 現在はダミーデータとファイル名を返す
             sendResponse({
-                markdownContent: "## Gemini Chat History\n\n### 確認用\n\nこのメッセージが見えている場合、content.jsからのダミーデータが渡されています。これまでの対話はまだ抽出されていません。\n\n---\n\n## ユーザー\nテストプロンプト\n\n## Gemini\nテスト応答。コードブロック```javascript\nconsole.log('Hello');\n```",
+                markdownContent: markdownContent,
                 fileName: fileName
             });
 

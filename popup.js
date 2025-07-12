@@ -2,8 +2,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const exportButton = document.getElementById('exportButton');
     const statusMessage = document.getElementById('statusMessage');
 
+    // UI状態を元に戻す関数
+    function resetUI() {
+        exportButton.disabled = false;
+        exportButton.textContent = 'チャットをエクスポート';
+    }
+
     exportButton.addEventListener('click', () => {
+        // UIの状態をリセット
         statusMessage.textContent = 'エクスポート中...';
+        statusMessage.style.color = '#666';
+        exportButton.disabled = true;
+        exportButton.textContent = 'エクスポート中...';
         
         // アクティブなタブに対してcontent.jsを実行し、チャットデータを取得する
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -14,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!tabs[0].url.startsWith('https://gemini.google.com/')) {
                     statusMessage.textContent = 'エラー: Geminiのチャットページで実行してください。';
                     statusMessage.style.color = 'red';
+                    resetUI();
                     return;
                 }
 
@@ -31,20 +42,35 @@ document.addEventListener('DOMContentLoaded', () => {
                                 statusMessage.textContent = 'エラー: エクスポートに失敗しました。ページをリロードしてみてください。';
                                 statusMessage.style.color = 'red';
                                 console.error(chrome.runtime.lastError);
+                                resetUI();
                                 return;
                             }
 
                             if (response && response.markdownContent && response.fileName) {
                                 // Markdownコンテンツとファイル名を受け取ったら、ダウンロード処理を実行
-                                downloadMarkdownFile(response.markdownContent, response.fileName);
-                                statusMessage.textContent = 'エクスポートが完了しました！';
-                                statusMessage.style.color = 'green';
+                                try {
+                                    downloadMarkdownFile(response.markdownContent, response.fileName);
+                                    statusMessage.textContent = 'エクスポートが完了しました！';
+                                    statusMessage.style.color = 'green';
+                                    // 成功時は3秒後にUIをリセット
+                                    setTimeout(() => {
+                                        statusMessage.textContent = '';
+                                        resetUI();
+                                    }, 3000);
+                                } catch (downloadError) {
+                                    statusMessage.textContent = 'エラー: ファイルのダウンロードに失敗しました。';
+                                    statusMessage.style.color = 'red';
+                                    console.error('Download error:', downloadError);
+                                    resetUI();
+                                }
                             } else if (response && response.error) {
                                 statusMessage.textContent = `エラー: ${response.error}`;
                                 statusMessage.style.color = 'red';
+                                resetUI();
                             } else {
-                                statusMessage.textContent = 'エラー: 想定外の応答を受信しました。';
+                                statusMessage.textContent = 'エラー: チャット履歴が見つからないか、応答が不正です。';
                                 statusMessage.style.color = 'red';
+                                resetUI();
                             }
                         });
                     }
