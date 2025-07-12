@@ -88,8 +88,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 const titleElement = selectedConversation.querySelector('.conversation-title');
                 if (titleElement && titleElement.textContent.trim()) {
                     chatTitle = titleElement.textContent.trim();
-                    // 末尾の不要な文字列を除去
-                    chatTitle = chatTitle.replace(/\s+(Markdown|markdown|MD|md)$/i, '');
                     console.log("Selected chat title found:", chatTitle);
                 } else {
                     console.log("Title element not found in selected conversation, using default");
