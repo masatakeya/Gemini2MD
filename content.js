@@ -82,15 +82,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         let chatTitle = "Gemini_Chat"; // デフォルトのファイル名（後で実際のタイトルを取得）
 
         try {
-            // サイドバーからチャットタイトルを取得
-            const titleElement = document.querySelector('.conversation-title');
-            if (titleElement && titleElement.textContent.trim()) {
-                chatTitle = titleElement.textContent.trim();
-                // 末尾の不要な文字列を除去
-                chatTitle = chatTitle.replace(/\s+(Markdown|markdown|MD|md)$/i, '');
-                console.log("Chat title found:", chatTitle);
+            // サイドバーから現在選択されているチャットのタイトルを取得
+            const selectedConversation = document.querySelector('.conversation.selected');
+            if (selectedConversation) {
+                const titleElement = selectedConversation.querySelector('.conversation-title');
+                if (titleElement && titleElement.textContent.trim()) {
+                    chatTitle = titleElement.textContent.trim();
+                    // 末尾の不要な文字列を除去
+                    chatTitle = chatTitle.replace(/\s+(Markdown|markdown|MD|md)$/i, '');
+                    console.log("Selected chat title found:", chatTitle);
+                } else {
+                    console.log("Title element not found in selected conversation, using default");
+                    chatTitle = "Gemini_Chat";
+                }
             } else {
-                console.log("Chat title not found, using default");
+                console.log("Selected conversation not found, using default");
                 chatTitle = "Gemini_Chat";
             }
 
